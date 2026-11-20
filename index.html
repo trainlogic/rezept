@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<title>Rezept in TrainLogic</title>
+<!--
+  Landeseite fuer ein per Link geteiltes Rezept (TrainLogic, Ernaehrung).
+
+  Die App teilt <diese Seite>?r=<Schluessel, 24 Zeichen a-f0-9>. Die Seite
+  fragt KEINE Datenbank und zeigt das Rezept nicht selbst: sie reicht den
+  Schluessel nur an die App weiter (trainlogic://einstellen?z=rezept&p=...).
+
+  Wer die App nicht hat, soll zuerst im Store landen (Benjamin 20.11.2026):
+  - Android: intent:// mit browser_fallback_url - ohne App geht es von
+    selbst in den Play Store. Die Seite versucht das gleich beim Laden;
+    blockt der Browser den Sprung ohne Tipp, bleibt der Knopf.
+  - iOS: ein eigenes Schema kennt keinen Rueckfall, und ein Timer-Sprung in
+    den App Store war am 07.09.2026 falsch (siehe ../einladung). Deshalb
+    zwei Knoepfe: "Rezept in TrainLogic oeffnen" und darunter der App Store.
+    Von selbst ginge es erst mit Universal Links (eigene Domain bzw.
+    apple-app-site-association) - das braucht einen Store-Build.
+  Nach der Installation den Link noch einmal antippen.
+
+  Quelle im App-Repo: docs/website/rezept/index.html. Ausgeliefert ueber
+  GitHub Pages (Repo trainlogic/rezept), siehe LIESMICH.md.
+-->
+<style>
+  :root { --grund: #06101B; --panel: #121B2C; --rand: #1E2A40; --tinte: #EEF2F8; --stumm: #8A97AD; --orange: #F26A2C; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--grund); color: var(--tinte); font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-size: 16px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+  .seite { max-width: 440px; margin: 0 auto; padding: 28px 20px 48px; }
+  .marke { font-size: 12px; letter-spacing: 4px; color: var(--orange); font-weight: 700; }
+  h1 { font-size: 28px; line-height: 1.1; margin: 8px 0 6px; text-transform: uppercase; letter-spacing: 1px; }
+  p { margin: 0 0 12px; color: var(--stumm); }
+  .code { margin: 18px 0 8px; background: var(--panel); border: 1px solid var(--rand); border-radius: 14px; padding: 18px 14px; text-align: center; }
+  .code small { display: block; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--stumm); font-weight: 700; margin-bottom: 6px; }
+  .code b { display: block; font-size: 30px; letter-spacing: 3px; color: var(--orange); font-variant-numeric: tabular-nums; user-select: all; -webkit-user-select: all; word-break: break-all; }
+  .knopf { display: block; width: 100%; margin-top: 10px; padding: 14px 16px; border-radius: 10px; border: 1px solid var(--orange); background: var(--orange); color: #fff; font-weight: 700; font-size: 16px; letter-spacing: 1px; text-transform: uppercase; text-align: center; text-decoration: none; cursor: pointer; font-family: inherit; }
+  .knopf.leise { background: transparent; color: var(--orange); }
+  .knopf.grau { border-color: var(--rand); background: var(--panel); color: var(--tinte); }
+  ol { padding-left: 22px; margin: 18px 0 0; color: var(--stumm); }
+  ol li { margin-bottom: 8px; }
+  ol b { color: var(--tinte); }
+  .stores { display: grid; gap: 8px; grid-template-columns: 1fr 1fr; margin-top: 8px; }
+  .stores.einer { grid-template-columns: 1fr; }
+  .hinweis { margin-top: 24px; font-size: 13px; border-left: 2px solid var(--orange); padding-left: 10px; }
+  .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: #1C2A44; border: 1px solid #2C3B57; padding: 10px 16px; border-radius: 10px; font-size: 14px; font-weight: 600; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  .toast.an { opacity: 1; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="seite">
+  <div class="marke">TRAINLOGIC</div>
+  <h1>Ein Rezept für dich</h1>
+
+  <div id="mitCode" hidden>
+    <p>Jemand hat ein Rezept mit dir geteilt – mit Zutaten, Mengen und Nährwerten je Portion. Es öffnet sich in TrainLogic, dort kannst du es in deine Rezepte übernehmen.</p>
+    <a class="knopf" id="oeffnen" href="#">Rezept in TrainLogic öffnen</a>
+    <ol>
+      <li><b>Noch keine App?</b> Lade TrainLogic über den Knopf unten.</li>
+      <li><b>Danach diesen Link noch einmal antippen</b> – dann öffnet sich das Rezept.</li>
+    </ol>
+  </div>
+
+  <div id="ohneCode" hidden>
+    <p>Dieser Link ist unvollständig. Bitte lass dir das Rezept noch einmal schicken.</p>
+  </div>
+
+  <!-- Je Telefon nur der passende Store; ohne JavaScript oder am Rechner beide. -->
+  <div class="stores" id="stores">
+    <a class="knopf grau" id="storeApple" href="https://apps.apple.com/app/trainlogic-training-plan/id6801099302">App Store</a>
+    <a class="knopf grau" id="storeGoogle" href="https://play.google.com/store/apps/details?id=com.benja.trainlogic">Google Play</a>
+  </div>
+
+  <div class="hinweis" id="hinweis" hidden>Nur wer diesen Link hat, sieht das Rezept.</div>
+</div>
+<script>
+(function () {
+  var PLAY = "https://play.google.com/store/apps/details?id=com.benja.trainlogic";
+
+  // Der Schluessel aus der Adresse: genau 24 Zeichen a-f0-9, sonst nichts.
+  var roh = "";
+  try { roh = new URLSearchParams(window.location.search).get("r") || ""; } catch (e) { roh = ""; }
+  var tk = /^[a-f0-9]{24}$/.test(roh) ? roh : "";
+
+  document.getElementById("mitCode").hidden = !tk;
+  document.getElementById("hinweis").hidden = !tk;
+  document.getElementById("ohneCode").hidden = !!tk;
+
+  var ua = navigator.userAgent || "";
+  var android = /android/i.test(ua);
+  var ios = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  if (android) { document.getElementById("storeApple").hidden = true; document.getElementById("stores").classList.add("einer"); }
+  else if (ios) { document.getElementById("storeGoogle").hidden = true; document.getElementById("stores").classList.add("einer"); }
+  if (!tk) return;
+
+  var oeffnen = document.getElementById("oeffnen");
+  oeffnen.setAttribute("href", "trainlogic://einstellen?z=rezept&p=" + tk);
+  if (android) {
+    var intent = "intent://einstellen?z=rezept&p=" + tk + "#Intent;scheme=trainlogic;package=com.benja.trainlogic;S.browser_fallback_url=" + encodeURIComponent(PLAY) + ";end";
+    oeffnen.setAttribute("href", intent);
+    // Gleich versuchen: mit App oeffnet sich das Rezept, ohne App der Play Store.
+    // Einmal je Seitenaufruf, damit "Zurueck" aus dem Store nicht wieder wegspringt.
+    try {
+      if (!sessionStorage.getItem("tl_rezept_" + tk)) { sessionStorage.setItem("tl_rezept_" + tk, "1"); window.location.href = intent; }
+    } catch (e) { /* dann bleibt der Knopf */ }
+  }
+})();
+</script>
+</body>
+</html>
